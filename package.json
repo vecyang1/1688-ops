@@ -1,0 +1,29 @@
+{
+  "name": "1688-ops",
+  "version": "1.0.0",
+  "description": "Agentic CLI and programmatic operations toolkit for 1688.com wholesale sourcing",
+  "type": "module",
+  "main": "bin/1688-cli.js",
+  "bin": {
+    "1688-ops": "bin/1688-cli.js",
+    "1688-cli": "bin/1688-cli.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node bin/1688-cli.js",
+    "test": "node --test tests/*.test.js",
+    "install-adapters": "bash scripts/install-adapters.sh"
+  },
+  "keywords": [
+    "1688",
+    "wholesale",
+    "sourcing",
+    "ecommerce-agent",
+    "opencli",
+    "agentic"
+  ],
+  "author": "V",
+  "license": "MIT"
+}
