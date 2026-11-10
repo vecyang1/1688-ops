@@ -1,5 +1,7 @@
 # 1688-ops Knowledge & Architecture Router (VAULT.md)
 
+> Scope: project-local — this file governs only this project root. Cross-project truth lives in the 2nd Brain vault: /Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain (contract: 00 - System/contracts/project-link-bridge.md).
+
 本文件是 1688-ops 项目的上下文与技术路由枢纽。
 
 ## 项目定位与归属
