@@ -1,17 +1,10 @@
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-
-const SOURCE_DIR = path.resolve(
-  process.env.HOME,
-  'Documents/A-coding/opencli-fork/clis/1688'
-);
-const INSTALLED_DIR = path.resolve(
-  process.env.HOME,
-  '.opencli/clis/1688'
-);
+import { getAdapterDirs } from '../src/diagnose.js';
 
 function fileHash(fp) {
   if (!fs.existsSync(fp)) return null;
@@ -31,6 +24,40 @@ describe('1688 OpenCLI Adapter Contract & Parity Test Suite', () => {
     'image-search.js',
     'shared.js',
   ];
+
+  let tempRoot = null;
+  let SOURCE_DIR;
+  let INSTALLED_DIR;
+
+  before(() => {
+    const dirs = getAdapterDirs();
+    if (fs.existsSync(dirs.sourceAdaptersDir) && fs.existsSync(dirs.installedAdaptersDir)) {
+      SOURCE_DIR = dirs.sourceAdaptersDir;
+      INSTALLED_DIR = dirs.installedAdaptersDir;
+    } else {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), '1688-contract-test-'));
+      SOURCE_DIR = path.join(tempRoot, 'src');
+      INSTALLED_DIR = path.join(tempRoot, 'dest');
+      fs.mkdirSync(SOURCE_DIR, { recursive: true });
+      fs.mkdirSync(INSTALLED_DIR, { recursive: true });
+      for (const file of expectedAdapters) {
+        const stub =
+          file === 'auth.js'
+            ? "registerSiteAuthCommands({ site: '1688' });\n"
+            : file === 'shared.js'
+              ? "export const SITE = '1688';\n"
+              : `export const command = cli({ site: '1688', name: '${file}' });\n`;
+        fs.writeFileSync(path.join(SOURCE_DIR, file), stub, 'utf-8');
+        fs.writeFileSync(path.join(INSTALLED_DIR, file), stub, 'utf-8');
+      }
+    }
+  });
+
+  after(() => {
+    if (tempRoot) {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
 
   test('source adapter directory exists and has all 10 adapters', () => {
     assert.ok(fs.existsSync(SOURCE_DIR), `Source directory does not exist: ${SOURCE_DIR}`);

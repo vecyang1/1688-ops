@@ -2,6 +2,12 @@
 
 本项目遵循语义化版本控制与确定性对账演化规范。
 
+## [1.1.1] - 2026-11-11
+
+### Fixed
+- `src/diagnose.js` 支持通过 `HUB_1688_ADAPTER_SRC` 与 `HUB_1688_ADAPTER_DEST` 环境变量覆写适配器路径，与 `scripts/install-adapters.sh` 对齐。
+- `tests/adapter_contract.test.js` 与 `tests/diagnose.test.js` 在无本地 OpenCLI 运行环境的 CI runner 上自动构造隔离临时适配器夹具，消除对宿主机目录的硬编码依赖。
+
 ## [1.1.0] - 2026-11-11
 
 ### Added

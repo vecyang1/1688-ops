@@ -1,13 +1,69 @@
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { initDatabase } from '../src/db.js';
 import {
+  getAdapterDirs,
   readSystemStatus,
   testLiveParser,
   reconcileAdapters,
 } from '../src/diagnose.js';
 
+const EXPECTED_ADAPTERS = [
+  'search.js',
+  'item.js',
+  'store.js',
+  'assets.js',
+  'download.js',
+  'auth.js',
+  'cart.js',
+  'orders.js',
+  'image-search.js',
+  'shared.js',
+];
+
 describe('1688 Diagnostics & Observability Test Suite', () => {
+  let tempRoot = null;
+  let prevSrc;
+  let prevDest;
+
+  before(() => {
+    const { sourceAdaptersDir } = getAdapterDirs();
+    if (!fs.existsSync(sourceAdaptersDir)) {
+      prevSrc = process.env.HUB_1688_ADAPTER_SRC;
+      prevDest = process.env.HUB_1688_ADAPTER_DEST;
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), '1688-diag-test-'));
+      const srcDir = path.join(tempRoot, 'src');
+      const destDir = path.join(tempRoot, 'dest');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(destDir, { recursive: true });
+      for (const file of EXPECTED_ADAPTERS) {
+        const stub =
+          file === 'auth.js'
+            ? "registerSiteAuthCommands({ site: '1688' });\n"
+            : file === 'shared.js'
+              ? "export const SITE = '1688';\n"
+              : `export const command = cli({ site: '1688', name: '${file}' });\n`;
+        fs.writeFileSync(path.join(srcDir, file), stub, 'utf-8');
+        fs.writeFileSync(path.join(destDir, file), stub, 'utf-8');
+      }
+      process.env.HUB_1688_ADAPTER_SRC = srcDir;
+      process.env.HUB_1688_ADAPTER_DEST = destDir;
+    }
+  });
+
+  after(() => {
+    if (tempRoot) {
+      if (prevSrc === undefined) delete process.env.HUB_1688_ADAPTER_SRC;
+      else process.env.HUB_1688_ADAPTER_SRC = prevSrc;
+      if (prevDest === undefined) delete process.env.HUB_1688_ADAPTER_DEST;
+      else process.env.HUB_1688_ADAPTER_DEST = prevDest;
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('readSystemStatus reports environment, database stats, and adapter parity', () => {
     const db = initDatabase(':memory:');
     const status = readSystemStatus(db);

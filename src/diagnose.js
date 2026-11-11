@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -17,14 +18,17 @@ import {
   extractOfferId,
 } from './extractor.js';
 
-const SOURCE_ADAPTERS_DIR = path.resolve(
-  process.env.HOME,
-  'Documents/A-coding/opencli-fork/clis/1688'
-);
-const INSTALLED_ADAPTERS_DIR = path.resolve(
-  process.env.HOME,
-  '.opencli/clis/1688'
-);
+export function getAdapterDirs() {
+  const homeDir = process.env.HOME || os.homedir();
+  return {
+    sourceAdaptersDir:
+      process.env.HUB_1688_ADAPTER_SRC ||
+      path.resolve(homeDir, 'Documents/A-coding/opencli-fork/clis/1688'),
+    installedAdaptersDir:
+      process.env.HUB_1688_ADAPTER_DEST ||
+      path.resolve(homeDir, '.opencli/clis/1688'),
+  };
+}
 
 function computeFileHash(filePath) {
   if (!fs.existsSync(filePath)) return null;
@@ -38,6 +42,10 @@ function computeFileHash(filePath) {
  * @returns {object}
  */
 export function readSystemStatus(db) {
+  const {
+    sourceAdaptersDir: SOURCE_ADAPTERS_DIR,
+    installedAdaptersDir: INSTALLED_ADAPTERS_DIR,
+  } = getAdapterDirs();
   const dbPath = db ? DEFAULT_DB_PATH : null;
   const dbExists = dbPath ? fs.existsSync(dbPath) : false;
   const dbStats = db ? getStats(db) : null;
@@ -170,6 +178,10 @@ export function testLiveParser(samples = {}) {
  * @returns {object}
  */
 export function reconcileAdapters() {
+  const {
+    sourceAdaptersDir: SOURCE_ADAPTERS_DIR,
+    installedAdaptersDir: INSTALLED_ADAPTERS_DIR,
+  } = getAdapterDirs();
   if (!fs.existsSync(SOURCE_ADAPTERS_DIR)) {
     throw new Error(`Source adapters dir not found: ${SOURCE_ADAPTERS_DIR}`);
   }
