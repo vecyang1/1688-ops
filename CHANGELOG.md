@@ -43,7 +43,7 @@
   - 实现“能调”：`1688-ops diagnose --reconcile` 实现源码区向运行区的受控热同步。
 - **全局 CLI 与技能套件**：
   - 提供全局独立命令行工具 `1688-ops` 与 `1688-cli`（软链至 `~/.local/bin`）。
-  - 创建官方 Agent Skill `1688-ops`，并在 `~/.gemini/antigravity/skills/1688-ops` 建立镜像。
+  - 创建官方 Agent Skill `1688-ops`，并在 `internal-docs` 建立镜像。
 - **全量测试套件 (27/27 全部通过)**：
   - `tests/unit_parsers.test.js`：纯函数解析器 16 项单元测试。
   - `tests/db.test.js`：SQLite 存储与派生计算 5 项测试。

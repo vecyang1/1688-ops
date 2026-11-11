@@ -4,3 +4,20 @@ node_modules/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+
+# Security, Private Workspaces & Agent Constitutions
+VAULT.md
+CLAUDE.md
+GEMINI.md
+CODEX.md
+task_plan.md
+progress.md
+handoff.md
+decisions.md
+operations/
+graphify-out/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template

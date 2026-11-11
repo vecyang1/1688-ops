@@ -1,6 +1,6 @@
 # 1688-ops File Map Index
 
-> Scope: project-local — this file governs only this project root. Cross-project truth lives in the 2nd Brain vault: /Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain (contract: 00 - System/contracts/project-link-bridge.md).
+> Scope: project-local — this file governs only this project root. Cross-project truth lives in the knowledge vault vault: /Users/vecsatfoxmailcom/development workspace/development workspace/26.06.06 knowledge vault (contract: 00 - System/contracts/project-link-bridge.md).
 
 本文件为项目文件结构与职责映射索引。
 
