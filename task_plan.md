@@ -35,3 +35,10 @@
   - [x] `tests/adapter_contract.test.js`：3 项适配器哈希防漂移契约测试全部通过。
   - [x] `tests/diagnose.test.js`：3 项诊断器测试全部通过。
   - [x] 真实浏览器端到端测试：验证登录、关键词检索、采购车拉取与 SQLite 自动持久化。
+
+- [x] **Phase 6: 多页分页支持、智能推理引擎与出海社区准备**
+  - [x] 实现 `opencli-fork/clis/1688/search.js` 与 `orders.js` 多页抓取与去重 (`--pages`)。
+  - [x] 实现 `src/reasoner.js`：供应商量化评分 (0-100)、阶梯价分解、跨境到仓毛利与保本 ROAS 测算、7 项风控排查。
+  - [x] 接入 CLI 指令 `1688-ops reason` (支持 `--target-price`、`--currency`、`--live` 与 `--json`)。
+  - [x] 编写 `tests/reasoner.test.js`，全量 36 项测试全部通过。
+  - [x] 审查隐私边界与开源准备，构建去塑料感社区分享方案。

@@ -108,14 +108,15 @@ export class HubClient1688 {
    */
   async search(keyword, options = {}) {
     const limit = options.limit || 20;
-    const args = [keyword, '--limit', String(limit)];
+    const pages = options.pages || (limit > 20 ? Math.ceil(limit / 20) : 1);
+    const args = [keyword, '--limit', String(limit), '--pages', String(pages)];
     const items = await this.runRaw('search', args);
 
     if (this.db && Array.isArray(items)) {
       upsertOffers(this.db, items);
       const ids = items.map((it) => it.offer_id).filter(Boolean);
       recordSearch(this.db, 'text', keyword, ids);
-      logAudit(this.db, 'search', keyword, `关键词检索成功，获取 ${items.length} 个条目`, { count: items.length });
+      logAudit(this.db, 'search', keyword, `关键词检索成功，获取 ${items.length} 个条目 (页数: ${pages})`, { count: items.length, pages });
     }
 
     return items;

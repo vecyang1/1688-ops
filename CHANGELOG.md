@@ -2,6 +2,25 @@
 
 本项目遵循语义化版本控制与确定性对账演化规范。
 
+## [1.1.0] - 2026-11-11
+
+### Added
+- **自动化多页分页 (Multi-page Pagination)**：
+  - `opencli-fork/clis/1688/search.js` 支持 `--pages` 参数，基于 `s.1688.com` 原生 `beginPage` 参数实现跨页并发抓取与去重。
+  - `opencli-fork/clis/1688/orders.js` 支持买家采购订单跨页拉取。
+  - `HubClient1688.search` 与 `1688-cli.js search` 统一接入 `--pages` 控制。
+- **智能货源推理与决策引擎 (`src/reasoner.js`)**：
+  - 供应商可信度评分模型 (0-100)：涵盖复购率(30%)、验厂资质(25%)、动销表现(20%)、履约时效(15%)与价格稳定性(10%)。
+  - 阶梯批发价与折让幅度分析 (`analyzePriceTiers`)。
+  - 跨境出海单件毛利与单位经济模型 (`estimateMarginAndProfit`)：精准测算采购出厂价、到仓落地总成本、目标零售价、单件毛利与保本广告投产比 (Break-Even ROAS)。
+  - 7 项核心风险触发器排查 (`evaluateRiskTriggers`)：覆盖低回头率、无退换保障、高起订量、零动销、非源头工厂、缺少阶梯价、宽价格跨度防引流。
+  - 全量操作员行动决议生成 (`RECOMMENDED` / `CONDITIONAL` / `HIGH_RISK`)。
+- **新增 CLI 指令 `1688-ops reason`**：
+  - 支持 `1688-ops reason <offer_id> [--target-price P] [--currency USD] [--live] [--json]`。
+  - 支持离线真理库秒级推导与现场在线拉取对账。
+- **全量单元测试与端到端验算**：
+  - 新增 `tests/reasoner.test.js`，包含 9 项纯函数与端到端决策测试，测试总数增至 36 项，通过率 100%。
+
 ## [1.0.0] - 2026-11-10
 
 ### 初始发布与核心架构建立
@@ -9,7 +28,7 @@
   - 定位并修复 `~/Documents/A-coding/opencli-fork/clis/1688` 与 `~/.opencli/clis/1688`。
   - 重写 `shared.js` 中的 `parsePriceText`，采用严格的货币符号锚定匹配，彻底杜绝促销文本中的年份（如 2026）、天数（如 90天）和回头率百分比串入价格区间。
   - 修复 `search.js` 现代卡片布局（`offerCard--`）下的 scoped 标题与单价提取逻辑。
-  - 重写 `auth.js` 认证检测逻辑，移除阻塞式首页导航，实现毫秒级登录身份提取（`hongxin52013`）。
+  - 重写 `auth.js` 认证检测逻辑，移除阻塞式首页导航，实现毫秒级登录身份与会话状态提取。
 - **新增 OpenCLI 适配器**：
   - `cart.js`：提取买家采购车/进货单列表，支持多规格 SKU、店铺名称与有效状态。
   - `orders.js`：拉取买家采购订单列表，兼容 Quark/Shadow DOM 组件。

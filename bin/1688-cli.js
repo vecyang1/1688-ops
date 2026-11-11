@@ -20,6 +20,7 @@ import {
   testLiveParser,
   reconcileAdapters,
 } from '../src/diagnose.js';
+import { reasonOffer } from '../src/reasoner.js';
 
 function printHelp() {
   console.log(`
@@ -30,12 +31,16 @@ function printHelp() {
   1688-ops whoami                   输出当前登录用户信息 (JSON)
 
 在线货源检索与抓取:
-  1688-ops search <关键词> [--limit 20] [--sort sales|price|return_rate] [--no-sync]
+  1688-ops search <关键词> [--limit 20] [--pages 1] [--sort sales|price|return_rate] [--no-sync]
   1688-ops image-search <图片路径/URL> [--limit 20]
   1688-ops item <offer_id> [--no-sync]
   1688-ops store <member_id或店铺URL>
   1688-ops cart                     抓取当前采购车条目
-  1688-ops orders                   抓取买家采购订单列表
+  1688-ops orders [--pages 1]       抓取买家采购订单列表
+
+智能推理与毛利风险对账:
+  1688-ops reason <offer_id> [--target-price P] [--currency USD] [--live] [--json]
+                                    执行供应商评分、阶梯价、毛利模型与 7 项风险排查
 
 离线数据真理库 (SQLite):
   1688-ops db list [--limit 20] [--keyword 词] [--sort sales|return_rate|price_asc]
@@ -89,12 +94,14 @@ async function main() {
 
         const limitArgIdx = argv.indexOf('--limit');
         const limit = limitArgIdx !== -1 && argv[limitArgIdx + 1] ? parseInt(argv[limitArgIdx + 1], 10) : 10;
+        const pagesArgIdx = argv.indexOf('--pages');
+        const pages = pagesArgIdx !== -1 && argv[pagesArgIdx + 1] ? parseInt(argv[pagesArgIdx + 1], 10) : (limit > 20 ? Math.ceil(limit / 20) : 1);
         const noSync = argv.includes('--no-sync');
 
         const activeClient = noSync ? new HubClient1688() : client;
-        console.log(`正在检索 1688 货源: "${keyword}" (数量上限: ${limit})...`);
+        console.log(`正在检索 1688 货源: "${keyword}" (上限: ${limit}, 页数: ${pages})...`);
 
-        const items = await activeClient.search(keyword, { limit });
+        const items = await activeClient.search(keyword, { limit, pages });
         console.log(`检索完成，获取 ${items.length} 条记录:\n`);
 
         const tableRows = items.map((it, idx) => ({
@@ -330,6 +337,95 @@ async function main() {
         console.log(`最后同步时间: ${offer.updated_at}`);
         console.log(`商品直达地址: ${offer.item_url}`);
         console.log('==============================\n');
+        break;
+      }
+
+      case 'reason': {
+        const offerId = argv[1];
+        if (!offerId || offerId.startsWith('-')) {
+          console.error('错误: 请提供要推理评估的商品 ID。例: 1688-ops reason 1024786474053 --target-price 39.99');
+          process.exit(1);
+        }
+
+        const targetPriceIdx = argv.indexOf('--target-price');
+        const targetPrice = targetPriceIdx !== -1 && argv[targetPriceIdx + 1] ? parseFloat(argv[targetPriceIdx + 1]) : undefined;
+
+        const currencyIdx = argv.indexOf('--currency');
+        const currency = currencyIdx !== -1 && argv[currencyIdx + 1] ? argv[currencyIdx + 1].toUpperCase() : 'USD';
+
+        const isLive = argv.includes('--live');
+        const isJson = argv.includes('--json');
+
+        let offer = !isLive ? getOffer(db, offerId) : null;
+        if (!offer) {
+          if (!isJson) console.log(`离线库未命中或指定在线抓取，正在在线获取商品详情: ${offerId}...`);
+          try {
+            offer = await client.getItem(offerId);
+          } catch (fetchErr) {
+            console.error(`无法获取商品信息: ${fetchErr.message}`);
+            process.exit(1);
+          }
+        }
+
+        if (!offer) {
+          console.error(`未能定位商品: ${offerId}`);
+          process.exit(1);
+        }
+
+        const reasoning = reasonOffer(offer, {
+          target_retail_price: targetPrice,
+          target_currency: currency,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(reasoning, null, 2));
+          return;
+        }
+
+        console.log('\n================ 1688 货源智能推理与决策报告 ================');
+        console.log(`商品标识: ${reasoning.offer_id} | ${reasoning.title}`);
+        console.log(`供应商: ${reasoning.seller_name || '未注明'}`);
+        console.log(`综合评分: ${reasoning.supplier_score} / 100 分 (决议: ${reasoning.verdict})`);
+        console.log('评分明细:');
+        console.log(`  - 复购/回头率得分: ${reasoning.supplier_breakdown.return_rate_score}/30`);
+        console.log(`  - 资质/验厂得分:   ${reasoning.supplier_breakdown.factory_badge_score}/25`);
+        console.log(`  - 动销/销量得分:   ${reasoning.supplier_breakdown.sales_score}/20`);
+        console.log(`  - 发货/履约得分:   ${reasoning.supplier_breakdown.fulfillment_score}/15`);
+        console.log(`  - 价格/起批稳定性: ${reasoning.supplier_breakdown.price_moq_stability}/10`);
+
+        console.log('\n阶梯价格结构:');
+        if (reasoning.tier_analysis.has_tiered_pricing) {
+          console.log(`  基准单价: ¥${reasoning.tier_analysis.base_unit_price} | 最低阶梯价: ¥${reasoning.tier_analysis.lowest_unit_price} (最高折让: ${reasoning.tier_analysis.max_discount_percent}%)`);
+          for (const t of reasoning.tier_analysis.tiers) {
+            console.log(`  - 起订量 >= ${t.min_quantity} 件: ¥${t.unit_price} (折让: ${t.discount_percent}%)`);
+          }
+        } else {
+          console.log(`  单一定价: ¥${reasoning.tier_analysis.base_unit_price} (无量产阶梯批发折扣)`);
+        }
+
+        console.log('\n跨境毛利与测算模型:');
+        const m = reasoning.margin_economics;
+        console.log(`  - 采购出厂价:   ¥${m.base_sourcing_cost_cny}`);
+        console.log(`  - 到仓落地成本: ¥${m.landed_cost_cny} (~$${m.landed_cost_usd} @ 汇率 ${m.exchange_rate})`);
+        console.log(`  - 目标零售定价: $${m.retail_price_usd} (约 ¥${m.retail_price_cny})`);
+        console.log(`  - 预估单件毛利: $${m.gross_profit_usd} (毛利率: ${m.gross_margin_percent}%)`);
+        console.log(`  - 保本广告ROAS: ${m.break_even_roas ?? 'N/A'}`);
+
+        console.log('\n风险排查与预警:');
+        if (reasoning.risk_summary.triggers.length === 0) {
+          console.log('  未触发已知严重风险项。');
+        } else {
+          for (const r of reasoning.risk_summary.triggers) {
+            console.log(`  [${r.severity}] ${r.message}`);
+            console.log(`    应对建议: ${r.mitigation}`);
+          }
+        }
+
+        console.log('\n操作员行动决策建议:');
+        for (const rec of reasoning.recommendations) {
+          console.log(`  * ${rec}`);
+        }
+        console.log('=============================================================\n');
         break;
       }
 
