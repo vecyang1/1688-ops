@@ -25,7 +25,7 @@
 
 ### 初始发布与核心架构建立
 - **统一所有权收敛 (Fix the Real Owner)**：
-  - 定位并修复 `~/Documents/A-coding/opencli-fork/clis/1688` 与 `~/.opencli/clis/1688`。
+  - 定位并修复 `./` 与 `~/.opencli/clis/1688`。
   - 重写 `shared.js` 中的 `parsePriceText`，采用严格的货币符号锚定匹配，彻底杜绝促销文本中的年份（如 2026）、天数（如 90天）和回头率百分比串入价格区间。
   - 修复 `search.js` 现代卡片布局（`offerCard--`）下的 scoped 标题与单价提取逻辑。
   - 重写 `auth.js` 认证检测逻辑，移除阻塞式首页导航，实现毫秒级登录身份与会话状态提取。

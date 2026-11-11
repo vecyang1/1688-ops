@@ -28,7 +28,7 @@
 - 派生整数与浮点数（如 `sales_value: 14000`、`return_rate_percent: 38.0`、`price_min: 25.0`）由纯函数在摄取管道中即时推导并建立索引，满足业务聚合计算。
 
 ### 1.5 适配器唯一源码与防漂移原则
-- 适配器唯一开发真理库为 `~/Documents/A-coding/opencli-fork/clis/1688`。
+- 适配器唯一开发真理库为 `./`。
 - 运行时目录 `~/.opencli/clis/1688` 为执行镜像。
 - 架构内建 `adapter_contract.test.js` 与 `diagnose.js`，通过 SHA-256 哈希比对实行硬性防漂移约束。
 
