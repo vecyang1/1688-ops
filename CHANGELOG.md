@@ -2,6 +2,33 @@
 
 本项目遵循语义化版本控制与确定性对账演化规范。
 
+## [1.3.0] - 2026-11-13
+
+### Added
+- **跨平台货源雷达与供应商打分 (`1688-ops provider-radar`)**：
+  - 新命令 `provider-radar [seed] [--json] [--json-out <path>] [--dashboard <out.html>] [--family <id>] [--destination CN|US|EU] [--buy-mode retail_single|wholesale_small]`：把 OneBound trend 门户 image-compare 回执与 JustOneAPI 1688 扫描集合并，按 spec-analyst 的 **`data/scoring.json` v1.1.0**（5 准则 / 40 指标 / 16 红线 / A-B-C-AVOID-UNRANKABLE）逐指标执行评分，输出家族内排名与 `--dashboard` 自包含 HTML 观测仪表盘。
+  - **执行器而非硬编码权重**：`src/provider_radar.js` 实现 scoring.json 的声明式 mini-language（`piecewise_linear` / `piecewise_linear_log10` / `categorical` / `ratio_piecewise` / `boolean` / `count_true_score` / `coverage_score` / `cert_tier_score` / `family_override` 家族锚点覆盖）、`missing_behavior`（unavailable→中性 / detail 已读→absent 值）、`{ref}` 表达式、`cap_tier_rule`、`auto_avoid`、置信度封顶与 toy-vs-family 去重规则；规则文件变更无需改代码。
+  - **`src/portal_session.js`**：OneBound trend 门户 Inertia 会话客户端（0600 会话文件，`quota()` / `search()` / `getRequest()` / `waitForRequest()` / `resolveShop()` / `imageProxyUrl()`），处理 302→`request_id` 轮询、409 Inertia 版本冲突、401/419 会话过期、422 校验错误、`flash.quota_exhausted`，所有错误带 actionable 且**永不打印 cookie/token**。
+  - **`src/radar_dashboard.js`**：单文件自包含 HTML（0 CDN / 0 `<script>` / 无外部资源），含跨家族对照条、逐供应商评分卡（准则/指标复算明细）、16 条红线证据、数据缺口未知态、额度台账、溯源面板（文件 sha256 + request id + 权重校验）；宽表横向滚动容器保证移动端无页面横向溢出。
+  - **`src/radar_diagnose.js` + `provider-radar --diagnose [--live]`**：门户会话/额度/契约、scoring.json 权重校验、数据文件、JustOneAPI token（`api_token` 字段）与 OneBound 凭据字段映射、会话过期（cookie Max-Age 7200s，>110min 告警）诊断；`--live` 仅 1 次免费额度 GET；门户额度 0 与 JustOneAPI 601 均按预期状态给出替代路径。
+- **`tests/provider_radar.test.js`**（33 项）：评分公式插值/对数/分类/证书等级、家族锚点覆盖、missing=unknown 与 absent 区分、16 红线声明式条件与 tier cap、auto_avoid/置信度封顶、家族/年龄分类、portal 行映射与 shop 脱敏、供应商按家族聚合、端到端 fixture、dashboard 无 CDN/未知态/XSS 转义、门户会话 302/409/422/额度耗尽（fixture fetch，无 live 调用）、OneBound 凭据字段回归（apiKey + credential，绝不 username）。
+
+### Fixed
+- **OneBound 凭据字段映射 bug**：`resolveCredentials('onebound')` 原先把 1Password 字段 `username`（登录名 `hxsmyxxx`）当作 API key；现按 `apiKey` + `credential` 解析，并对 `username`/`password` 做硬拒绝守卫（item ID `up3jwujwc4oho44jmnto4n6emu` 优先于显示名解析）。`api_fallback.js` 新增可注入/带缓存/带超时的 1Password lookup，测试断言请求的字段名（无 live 调用）。
+- **evidence JSON 写入权限**：`--json-out` 输出文件默认 `0600`。
+
+### Verification
+- `npm test` → **74/74 pass, 0 fail**（基线 41 + 新增 33）。
+- 真实数据运行：`1688-ops provider-radar 707370463758 --dashboard dashboard/provider_radar.html` → 283 offers + 2 portal rows（均与 JustOneAPI 合并）/ 42 家可排名供应商；主家族 e-skate = 木速龙 21.7 AVOID（RF03+RF05，加权 48.7）、替代 e-scooter = 特轮舒 53.9 C、hoverboard = 航派 50.5 C；无 A/B 可买供应商（scoring.json canonical 结论）。
+- `1688-ops provider-radar --diagnose` → 7 pass / 4 warn / 0 fail；`--live` 门户额度 `searchesRemaining=0` 正确告警；1Password unattended 在 Node CLI 子进程中超时被如实标注为“路由问题”而非“字段缺失”。
+- 注册：`~/.agents/skills/1688-ops/SKILL.md`、`26.06.06 2nd Brain/00 - System/registries/project-capabilities.md`、`05 - Memory Center/tools/onebound_open_platform.md`。
+
+### Known Limits
+- 详情页属性只覆盖 4 家供应商（JustOneAPI 余额 601 中断），其余 listing 的 A/B/D 维度只能是 unknown→中性 50；不能把“未知”当好数据。
+- 跨家族分数只作参考（scoring_mode=per_offer_family），不可直接比大小。
+- 门户 `query_mode=image` 多供应商能力在免费额度下未实测（需 Pro）。
+- 本机 DSH 会话内 1Password unattended 从 Node 子进程调用超时（同一命令在终端可用）——`--diagnose` 已区分该环境问题。
+
 ## [1.2.0] - 2026-11-13
 
 ### Added

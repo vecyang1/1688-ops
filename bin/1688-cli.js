@@ -5,7 +5,8 @@
  * 批发采购、以图搜款、详情对账与离线真理库管理工具
  */
 
-import { parseArgs } from 'node:util';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   initDatabase,
   listOffers,
@@ -23,10 +24,61 @@ import {
 import { reasonOffer } from '../src/reasoner.js';
 import { runParityAudit } from '../src/parity.js';
 import { callProviderApi } from '../src/api_fallback.js';
+import {
+  loadRadarDatasets,
+  loadScoringSpec,
+  runProviderRadar,
+  resolveRadarDir,
+} from '../src/provider_radar.js';
+import { renderRadarDashboard } from '../src/radar_dashboard.js';
+import { diagnoseProviderRadar, formatDiagnoseReport } from '../src/radar_diagnose.js';
 
 function readFlagValue(argv, flag) {
   const idx = argv.indexOf(flag);
   return idx !== -1 && argv[idx + 1] && !argv[idx + 1].startsWith('--') ? argv[idx + 1] : null;
+}
+
+/** Long scoring family id → short family id used by data/offers_classified.json. */
+const LONG_TO_SHORT_FAMILY = {
+  electric_skateboard: 'e_skate',
+  electric_scooter: 'e_scooter',
+  hoverboard_self_balancing: 'hoverboard',
+  drift_trike_kart: 'drift_trike',
+  motorized_freeline_board: 'freeline',
+};
+function shortFamilyFor(_spec, longFamily) {
+  return LONG_TO_SHORT_FAMILY[longFamily] || longFamily;
+}
+
+function printProviderRadarHelp() {
+  console.log(`
+1688-ops provider-radar — 以图/以链接跨平台找同款货源并给供应商打分
+
+用法:
+  1688-ops provider-radar [seed] [选项]
+    seed = 1688 offer_id 或商品链接；省略时自动选择主家族最高销量种子
+
+诊断 (diagnostic-first):
+  1688-ops provider-radar --diagnose            离线检查会话文件/额度/评分规则/数据文件 (不打印任何密钥)
+  1688-ops provider-radar --diagnose --live     额外执行 1 次门户免费额度 GET (不消耗比价次数)
+
+选项:
+  --json                     输出完整排名 JSON 到 stdout
+  --json-out <path>          将排名 JSON 写入文件
+  --dashboard [path]         输出自包含 HTML 观测仪表盘 (默认 <radar>/dashboard/provider_radar.html)
+  --no-dashboard             不生成 HTML
+  --data-dir <dir>           雷达数据目录 (默认 env PROVIDER_RADAR_DIR 或
+                             ~/Documents/Cowork/Antigravity Cowork/26.11.13 OneBound Provider Radar)
+  --scoring <path>           指定评分规则文件 (默认 <data-dir>/data/scoring.json)
+  --family <id>              覆盖主家族 (electric_skateboard|electric_scooter|hoverboard_self_balancing|...)
+  --destination <CN|US|EU>   目的地国家；非 CN 时启用 RF12/RF13 跨境红线 (默认 CN)
+  --max-ranked <n>           最多输出多少家供应商 (默认全部)
+  --buy-mode <retail_single|wholesale_small>  购买模式 (影响 C 子权重来源)
+
+流程: 本地已保存的 OneBound 门户比价行 + JustOneAPI 1688 扫描集 → 家族分类 → scoring.json
+      逐指标评分 → 红线/封顶 → 供应商聚合排名 → JSON + HTML 观测仪表盘。
+      不发起付费 API 调用；门户额度为 0 时只展示回执并把 POST 路径作为诊断项处理。
+`);
 }
 
 function printHelp() {
@@ -69,6 +121,13 @@ function printHelp() {
                                     对比 OneBound + JustOneAPI 在线目录与本地轮子缺口
   1688-ops fallback <justoneapi|onebound> <1688|taobao> <endpoint> [--param k=v]
                                     热备 API 直连调用（按需从环境变量或 1Password 取凭据）
+
+跨平台货源雷达与供应商打分 (Provider Radar):
+  1688-ops provider-radar [seed] [--json] [--dashboard out.html] [--family id]
+                                    以图/以链接跨平台找同款货源并给供应商打分；
+                                    OneBound trend image-compare 会话 + JustOneAPI 扫描集 + scoring.json
+  1688-ops provider-radar --diagnose [--live]
+                                    诊断优先：会话/额度/评分规则/数据文件/凭据字段映射 (不打印密钥)
 `);
 }
 
@@ -418,6 +477,141 @@ async function main() {
         }
         const result = await callProviderApi(provider, platform, endpoint, params);
         console.log(JSON.stringify(result, null, 2));
+        break;
+      }
+
+      case 'provider-radar': {
+        const radarArgv = argv.slice(1);
+        if (radarArgv.includes('--help') || radarArgv.includes('-h')) {
+          printProviderRadarHelp();
+          return;
+        }
+
+        const isJson = radarArgv.includes('--json');
+        const dataDir = readFlagValue(radarArgv, '--data-dir') || undefined;
+        const scoringPath = readFlagValue(radarArgv, '--scoring') || undefined;
+
+        if (radarArgv.includes('--diagnose')) {
+          const live = radarArgv.includes('--live');
+          const report = await diagnoseProviderRadar({ radarDir: dataDir, live });
+          if (isJson) {
+            console.log(JSON.stringify(report, null, 2));
+          } else {
+            console.log(formatDiagnoseReport(report));
+          }
+          if (report.summary.fail > 0) process.exitCode = 2;
+          return;
+        }
+
+        // ----- resolve inputs -----
+        const seedArg =
+          (radarArgv[0] && !radarArgv[0].startsWith('--') ? radarArgv[0] : null) ||
+          readFlagValue(radarArgv, '--seed');
+        const familyOverride = readFlagValue(radarArgv, '--family');
+        const destination = readFlagValue(radarArgv, '--destination');
+        const maxRanked = readFlagValue(radarArgv, '--max-ranked');
+        const buyMode = readFlagValue(radarArgv, '--buy-mode');
+        const jsonOut = readFlagValue(radarArgv, '--json-out');
+        const noDashboard = radarArgv.includes('--no-dashboard');
+        const dashboardFlagIdx = radarArgv.indexOf('--dashboard');
+        const dashboardPath =
+          dashboardFlagIdx !== -1
+            ? radarArgv[dashboardFlagIdx + 1] && !radarArgv[dashboardFlagIdx + 1].startsWith('--')
+              ? radarArgv[dashboardFlagIdx + 1]
+              : null
+            : undefined;
+
+        const dataset = loadRadarDatasets({ dataDir, scoringPath });
+        const spec = loadScoringSpec(dataset.scoring);
+        const radarDir = dataset.radarDir;
+
+        // Seed default: highest-sales rideable offer of the confirmed family.
+        const confirmedFamily = spec.product?.confirmed_family;
+        const defaultSeedOffer = (dataset.classified?.offers || [])
+          .filter((offer) => offer.rideable !== false && offer.family === shortFamilyFor(spec, confirmedFamily))
+          .sort((a, b) => (b.sales || 0) - (a.sales || 0))[0];
+        const seedInput = seedArg || defaultSeedOffer?.offer_id || null;
+        if (!seedInput) {
+          console.error('错误: 未提供 seed，且数据集中找不到主家族候选 seed。');
+          process.exit(1);
+        }
+
+        const result = runProviderRadar({
+          seed: { input: seedInput },
+          portal: dataset.portal,
+          classified: dataset.classified,
+          marketItems: dataset.marketItems,
+          providerDetails: dataset.providerDetails,
+          scoring: dataset.scoring,
+          spec,
+          provenance: { files: dataset.files, notes: dataset.notes },
+          options: {
+            primaryFamily: familyOverride || undefined,
+            destinationCountry: destination || undefined,
+            buyMode: buyMode || undefined,
+            maxRanked: maxRanked ? parseInt(maxRanked, 10) : undefined,
+          },
+        });
+
+        // ----- write outputs -----
+        const written = [];
+        const targetDashboard =
+          dashboardPath === undefined
+            ? path.join(radarDir, 'dashboard/provider_radar.html')
+            : dashboardPath;
+        if (!noDashboard && targetDashboard) {
+          fs.mkdirSync(path.dirname(targetDashboard), { recursive: true });
+          fs.writeFileSync(targetDashboard, renderRadarDashboard(result), 'utf8');
+          written.push(targetDashboard);
+        }
+        if (jsonOut) {
+          fs.mkdirSync(path.dirname(jsonOut), { recursive: true });
+          fs.writeFileSync(jsonOut, JSON.stringify(result, null, 2), 'utf8');
+          // Evidence files default to owner-only (human data + provenance; no secrets inside).
+          try {
+            fs.chmodSync(jsonOut, 0o600);
+          } catch {
+            /* best-effort on non-POSIX filesystems */
+          }
+          written.push(jsonOut);
+        }
+
+        if (isJson) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+
+        // ----- human summary -----
+        console.log(`\n[Provider Radar] seed: ${result.seed.title || result.seed.offer_id}`);
+        console.log(
+          `主家族: ${result.product.confirmed_family_label} (${result.product.confirmed_family}) · scoring.json ${result.scoring.version} (权重和 ${result.scoring.validation.criterion_weights_sum})`
+        );
+        console.log(
+          `数据: ${result.stats.offers_total} offers · ${result.stats.offers_detail_enriched} 条详情 · 门户行 ${result.stats.portal_rows} (合并 ${result.stats.portal_rows_joined}) · 可排名供应商 ${result.stats.providers_ranked}`
+        );
+        const quota = result.quota_ledger;
+        console.log(
+          `门户额度: ${quota.available ? `${quota.searches_remaining} 次剩余${quota.exhausted ? ' (已用尽，POST 将 quota_exhausted)' : ''}` : '无回执'}`
+        );
+        for (const group of result.family_groups) {
+          const role = group.role === 'primary' ? '主家族' : group.role === 'secondary' ? '替代家族' : '其他家族';
+          console.log(`\n--- ${role} · ${group.label_zh} (${group.family}) ---`);
+          for (const item of group.providers.slice(0, 10)) {
+            const flags = item.red_flags.length ? ` | 红线 ${item.red_flags.map((f) => f.id).join(',')}` : '';
+            console.log(
+              `  #${item.family_rank}. [${item.tier}] ${item.final_score}/100  ${item.shop || '加密店铺'}  ¥${item.price_cny ?? '?'}  已售 ${item.sales ?? '?'}  回头率 ${item.rr_percent ?? '?'}%${flags}`
+            );
+          }
+          if (group.providers.length > 10) console.log(`  … 其余 ${group.providers.length - 10} 家见仪表盘`);
+        }
+        if (result.unrankable.summary.length > 0) {
+          console.log(
+            `\n未参与排名: ${result.unrankable.summary.map((entry) => `${entry.code}=${entry.listings}`).join(' · ')}`
+          );
+        }
+        for (const warning of result.warnings.slice(0, 6)) console.log(`⚠️  ${warning}`);
+        for (const file of written) console.log(`\n✅ 已写入: ${file}`);
+        if (!noDashboard && !targetDashboard) console.log('（未生成 dashboard）');
         break;
       }
 

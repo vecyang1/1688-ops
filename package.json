@@ -1,6 +1,6 @@
 {
   "name": "1688-ops",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "description": "Agentic CLI and programmatic operations toolkit for 1688.com wholesale sourcing",
   "type": "module",
   "main": "bin/1688-cli.js",
