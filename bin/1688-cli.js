@@ -21,6 +21,13 @@ import {
   reconcileAdapters,
 } from '../src/diagnose.js';
 import { reasonOffer } from '../src/reasoner.js';
+import { runParityAudit } from '../src/parity.js';
+import { callProviderApi } from '../src/api_fallback.js';
+
+function readFlagValue(argv, flag) {
+  const idx = argv.indexOf(flag);
+  return idx !== -1 && argv[idx + 1] && !argv[idx + 1].startsWith('--') ? argv[idx + 1] : null;
+}
 
 function printHelp() {
   console.log(`
@@ -31,12 +38,18 @@ function printHelp() {
   1688-ops whoami                   输出当前登录用户信息 (JSON)
 
 在线货源检索与抓取:
-  1688-ops search <关键词> [--limit 20] [--pages 1] [--sort sales|price|return_rate] [--no-sync]
+  1688-ops search <关键词> [--limit 20] [--pages 1] [--sort default|sales|price_asc|price_desc|return_rate] [--price-min N] [--price-max N] [--scene all|factory|cross_border] [--no-sync]
   1688-ops image-search <图片路径/URL> [--limit 20]
   1688-ops item <offer_id> [--no-sync]
+  1688-ops reviews <offer_id> [--limit 20] [--sort default|latest]
+  1688-ops fee <offer_id> [--province 广东] [--qty 1]
+  1688-ops similar <offer_id> [--limit 20] [--no-sync]
+  1688-ops suggest <关键词> [--limit 10]
   1688-ops store <member_id或店铺URL>
-  1688-ops cart                     抓取当前采购车条目
-  1688-ops orders [--pages 1]       抓取买家采购订单列表
+  1688-ops shop-items <member_id或店铺URL> [--keyword 词] [--sort default|sales|new|price_asc|price_desc] [--pages 1] [--limit 20]
+  1688-ops factory-search <关键词> [--limit 20] [--pages 1] [--sort default|return_rate]
+  1688-ops cart [--no-sync]         抓取当前采购车条目
+  1688-ops orders [--status all] [--pages 1] [--no-sync]
 
 智能推理与毛利风险对账:
   1688-ops reason <offer_id> [--target-price P] [--currency USD] [--live] [--json]
@@ -47,11 +60,15 @@ function printHelp() {
   1688-ops db stats                 查看本地离线库统计数据
   1688-ops inspect <offer_id>       查看指定商品的深度审计指标与派生字段
 
-可观测性与对账器 (能读、能试、能调):
+可观测性、对标巡检与降级热备:
   1688-ops diagnose                 全面检查环境、数据统计与适配器同步状态 (能读)
   1688-ops diagnose --test-parser   使用现场样本执行纯函数白盒推导对账 (能试)
   1688-ops diagnose --reconcile     将适配器源码热同步至 OpenCLI 运行区 (能调)
   1688-ops install-adapters         同步并校验 OpenCLI 适配器
+  1688-ops parity [--check] [--json] [--scaffold]
+                                    对比 OneBound + JustOneAPI 在线目录与本地轮子缺口
+  1688-ops fallback <justoneapi|onebound> <1688|taobao> <endpoint> [--param k=v]
+                                    热备 API 直连调用（按需从环境变量或 1Password 取凭据）
 `);
 }
 
@@ -96,12 +113,16 @@ async function main() {
         const limit = limitArgIdx !== -1 && argv[limitArgIdx + 1] ? parseInt(argv[limitArgIdx + 1], 10) : 10;
         const pagesArgIdx = argv.indexOf('--pages');
         const pages = pagesArgIdx !== -1 && argv[pagesArgIdx + 1] ? parseInt(argv[pagesArgIdx + 1], 10) : (limit > 20 ? Math.ceil(limit / 20) : 1);
+        const sort = readFlagValue(argv, '--sort') || 'default';
+        const priceMin = readFlagValue(argv, '--price-min');
+        const priceMax = readFlagValue(argv, '--price-max');
+        const scene = readFlagValue(argv, '--scene') || 'all';
         const noSync = argv.includes('--no-sync');
 
         const activeClient = noSync ? new HubClient1688() : client;
-        console.log(`正在检索 1688 货源: "${keyword}" (上限: ${limit}, 页数: ${pages})...`);
+        console.log(`正在检索 1688 货源: "${keyword}" (上限: ${limit}, 页数: ${pages}, 排序: ${sort})...`);
 
-        const items = await activeClient.search(keyword, { limit, pages });
+        const items = await activeClient.search(keyword, { limit, pages, sort, priceMin, priceMax, scene });
         console.log(`检索完成，获取 ${items.length} 条记录:\n`);
 
         const tableRows = items.map((it, idx) => ({
@@ -220,8 +241,10 @@ async function main() {
 
       case 'orders': {
         const noSync = argv.includes('--no-sync');
-        console.log('正在拉取采购订单流水...');
-        const orders = await client.getOrders({ sync: !noSync });
+        const status = readFlagValue(argv, '--status') || 'all';
+        const pages = parseInt(readFlagValue(argv, '--pages') || '1', 10);
+        console.log(`正在拉取采购订单流水 (状态: ${status}, 页数: ${pages})...`);
+        const orders = await client.getOrders({ sync: !noSync, status, pages });
         console.log(`订单拉取完成，共 ${orders.length} 条记录:\n`);
 
         if (orders.length > 0) {
@@ -238,6 +261,163 @@ async function main() {
         } else {
           console.log('暂无采购订单记录。');
         }
+        break;
+      }
+
+      case 'reviews': {
+        const offerId = argv[1];
+        if (!offerId || offerId.startsWith('-')) {
+          console.error('错误: 请提供商品 ID。例: 1688-ops reviews 887904326744');
+          process.exit(1);
+        }
+        const limit = parseInt(readFlagValue(argv, '--limit') || '20', 10);
+        const sort = readFlagValue(argv, '--sort') || 'default';
+        const rows = await client.getReviews(offerId, { limit, sort });
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(rows, null, 2));
+        } else {
+          console.table(rows.map((r, i) => ({ 序号: i + 1, 买家: r.user, 日期: r.date, 规格: r.sku_spec, 内容: (r.content || '').slice(0, 48) })));
+        }
+        break;
+      }
+
+      case 'shop-items': {
+        const target = argv[1];
+        if (!target || target.startsWith('-')) {
+          console.error('错误: 请提供店铺 URL 或 memberId。');
+          process.exit(1);
+        }
+        const limit = parseInt(readFlagValue(argv, '--limit') || '20', 10);
+        const pages = parseInt(readFlagValue(argv, '--pages') || '1', 10);
+        const sort = readFlagValue(argv, '--sort') || 'default';
+        const keyword = readFlagValue(argv, '--keyword') || '';
+        const noSync = argv.includes('--no-sync');
+        const items = await client.getShopItems(target, { limit, pages, sort, keyword, sync: !noSync });
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(items, null, 2));
+        } else {
+          console.table(items.map((it, i) => ({ 序号: i + 1, 编号: it.offer_id, 标题: (it.title || '').slice(0, 28), 单价: it.price_text || '-', 销量: it.sales_text || '-' })));
+        }
+        break;
+      }
+
+      case 'fee': {
+        const offerId = argv[1];
+        if (!offerId || offerId.startsWith('-')) {
+          console.error('错误: 请提供商品 ID。');
+          process.exit(1);
+        }
+        const province = readFlagValue(argv, '--province') || '广东';
+        const qty = parseInt(readFlagValue(argv, '--qty') || '1', 10);
+        const res = await client.getFee(offerId, { province, qty });
+        console.log(JSON.stringify(res, null, 2));
+        break;
+      }
+
+      case 'suggest': {
+        const query = argv[1];
+        if (!query || query.startsWith('-')) {
+          console.error('错误: 请提供查询词。例: 1688-ops suggest "折叠椅"');
+          process.exit(1);
+        }
+        const limit = parseInt(readFlagValue(argv, '--limit') || '10', 10);
+        const rows = await client.suggest(query, { limit });
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(rows, null, 2));
+        } else {
+          console.table(rows);
+        }
+        break;
+      }
+
+      case 'similar': {
+        const offerId = argv[1];
+        if (!offerId || offerId.startsWith('-')) {
+          console.error('错误: 请提供商品 ID。');
+          process.exit(1);
+        }
+        const limit = parseInt(readFlagValue(argv, '--limit') || '20', 10);
+        const noSync = argv.includes('--no-sync');
+        const rows = await client.getSimilar(offerId, { limit, sync: !noSync });
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(rows, null, 2));
+        } else {
+          console.table(rows.map((r, i) => ({ 序号: i + 1, 编号: r.offer_id, 标题: (r.title || '').slice(0, 28), 价格: r.price_text || '-', 销量: r.sales_text || '-' })));
+        }
+        break;
+      }
+
+      case 'factory-search': {
+        const query = argv[1];
+        if (!query || query.startsWith('-')) {
+          console.error('错误: 请提供工厂关键词。');
+          process.exit(1);
+        }
+        const limit = parseInt(readFlagValue(argv, '--limit') || '20', 10);
+        const pages = parseInt(readFlagValue(argv, '--pages') || '1', 10);
+        const sort = readFlagValue(argv, '--sort') || 'default';
+        const rows = await client.searchFactories(query, { limit, pages, sort });
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(rows, null, 2));
+        } else {
+          console.table(rows.map((r, i) => ({ 序号: i + 1, 工厂: (r.factory_name || '').slice(0, 22), 地区: r.location || '-', 年限: r.years_text || '-', 回头率: r.return_rate_text || '-' })));
+        }
+        break;
+      }
+
+      case 'parity': {
+        const isJson = argv.includes('--json');
+        const check = argv.includes('--check');
+        const scaffold = argv.includes('--scaffold');
+        const report = await runParityAudit({ scaffold, writeMatrix: true });
+        if (isJson) {
+          console.log(JSON.stringify(report, null, 2));
+        } else {
+          console.log(`\n[1688 & Taobao 对标巡检] 状态: ${report.status}`);
+          for (const platform of ['1688', 'taobao']) {
+            for (const provider of ['onebound', 'justoneapi']) {
+              const s = report.summary[platform][provider];
+              console.log(`  - ${platform}/${provider}: 在线 ${s.live_total} | 已覆盖 ${s.covered} | 排除 ${s.excluded} | 缺口 ${s.missing} (${s.active_coverage_percent}%)`);
+            }
+          }
+          if (report.unmapped_gaps.length > 0) {
+            console.log('\n未映射上游接口:');
+            for (const g of report.unmapped_gaps) console.log(`  * ${g.platform}/${g.provider}: ${g.endpoint} (${g.name})`);
+          }
+          if (report.broken_mappings.length > 0) {
+            console.log('\n本地缺失适配器:');
+            for (const b of report.broken_mappings) console.log(`  * ${b.platform}: ${b.expectedLocal} (for ${b.endpoint})`);
+          }
+          if (report.scaffolded.length > 0) {
+            console.log(`\n已自动生成缺口脚手架 (${report.scaffolded.length} 个):`, report.scaffolded);
+          }
+        }
+        if (check && report.status !== 'PARITY_OK') {
+          process.exit(2);
+        }
+        break;
+      }
+
+      case 'fallback': {
+        const provider = argv[1];
+        const platform = argv[2];
+        const endpoint = argv[3];
+        if (!provider || !platform || !endpoint) {
+          console.error('用法: 1688-ops fallback <justoneapi|onebound> <1688|taobao> <endpoint> [--param k=v]');
+          process.exit(1);
+        }
+        const params = {};
+        for (let i = 4; i < argv.length; i += 1) {
+          if (argv[i] === '--param' && argv[i + 1]) {
+            const eq = argv[i + 1].indexOf('=');
+            if (eq > 0) {
+              params[argv[i + 1].slice(0, eq)] = argv[i + 1].slice(eq + 1);
+            }
+            i += 1;
+          }
+        }
+        const result = await callProviderApi(provider, platform, endpoint, params);
+        console.log(JSON.stringify(result, null, 2));
         break;
       }
 

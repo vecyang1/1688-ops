@@ -2,6 +2,20 @@
 
 本项目遵循语义化版本控制与确定性对账演化规范。
 
+## [1.2.0] - 2026-11-13
+
+### Added
+- **对标 OneBound（36 接口）与 JustOneAPI（21 接口）全量补齐 1688 缺失轮子**：
+  - `opencli-fork/clis/1688/item.js` 与 `shared.js` 新增完整 SKU 矩阵提取（`sku_matrix` / `sku_count`）、详情图文与物流摘要。
+  - `opencli-fork/clis/1688/search.js` 与 `1688-cli.js` 补全 `--sort`（销量/价格/回头率）、`--price-min`、`--price-max` 与 `--scene`（找工厂/跨境专区）筛选。
+  - 新增 6 个 1688 适配器：`reviews.js`（商品评价）、`shop-items.js`（店铺商品与分类）、`fee.js`（运费测算）、`suggest.js`（搜索联想词）、`similar.js`（同款与同行还在看）、`factory-search.js`（找工厂检索）。
+- **上游 API 对标巡检与自动脚手架引擎 (`src/parity.js`, `docs/parity_registry.json`)**：
+  - 新增 `1688-ops parity [--check] [--json] [--scaffold]`，实时拉取 OneBound 与 JustOneAPI 在线端点目录并与本地 1688/淘宝轮子对比，发现缺口自动生成脚手架并输出 `docs/api_parity_matrix.md`。
+- **热备直连降级网关 (`src/api_fallback.js`)**：
+  - 新增 `1688-ops fallback <justoneapi|onebound> <1688|taobao> <endpoint>`，按需从环境变量或 1Password 读取凭据。
+- **自动监控闭环 (`CAD-20261113-ecommerce-wheel-parity-sentinel`)**：
+  - 建立 Paseo 凌晨定期巡检（`25 3 * * 1,4`），自动监控上游缺口并触发吸收补齐，同时在 `vendor-asset-feature-radar` 中纳入 JustOneAPI 与 OneBound 资产。
+
 ## [1.1.1] - 2026-11-11
 
 ### Fixed

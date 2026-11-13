@@ -5,24 +5,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { initDatabase } from '../src/db.js';
 import {
+  EXPECTED_ADAPTERS,
   getAdapterDirs,
   readSystemStatus,
   testLiveParser,
   reconcileAdapters,
 } from '../src/diagnose.js';
-
-const EXPECTED_ADAPTERS = [
-  'search.js',
-  'item.js',
-  'store.js',
-  'assets.js',
-  'download.js',
-  'auth.js',
-  'cart.js',
-  'orders.js',
-  'image-search.js',
-  'shared.js',
-];
 
 describe('1688 Diagnostics & Observability Test Suite', () => {
   let tempRoot = null;
@@ -70,8 +58,8 @@ describe('1688 Diagnostics & Observability Test Suite', () => {
 
     assert.ok(status.timestamp);
     assert.ok(status.environment.nodeVersion);
-    assert.equal(status.adapters.total, 10);
-    assert.equal(status.adapters.synced, 10);
+    assert.equal(status.adapters.total, EXPECTED_ADAPTERS.length);
+    assert.equal(status.adapters.synced, EXPECTED_ADAPTERS.length);
     assert.equal(status.adapters.outOfSyncCount, 0);
   });
 

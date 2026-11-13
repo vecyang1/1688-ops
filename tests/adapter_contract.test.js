@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import { getAdapterDirs } from '../src/diagnose.js';
+import { getAdapterDirs, EXPECTED_ADAPTERS } from '../src/diagnose.js';
 
 function fileHash(fp) {
   if (!fs.existsSync(fp)) return null;
@@ -12,18 +12,7 @@ function fileHash(fp) {
 }
 
 describe('1688 OpenCLI Adapter Contract & Parity Test Suite', () => {
-  const expectedAdapters = [
-    'search.js',
-    'item.js',
-    'store.js',
-    'assets.js',
-    'download.js',
-    'auth.js',
-    'cart.js',
-    'orders.js',
-    'image-search.js',
-    'shared.js',
-  ];
+  const expectedAdapters = EXPECTED_ADAPTERS;
 
   let tempRoot = null;
   let SOURCE_DIR;
@@ -59,7 +48,7 @@ describe('1688 OpenCLI Adapter Contract & Parity Test Suite', () => {
     }
   });
 
-  test('source adapter directory exists and has all 10 adapters', () => {
+  test('source adapter directory exists and has all expected adapters', () => {
     assert.ok(fs.existsSync(SOURCE_DIR), `Source directory does not exist: ${SOURCE_DIR}`);
     for (const file of expectedAdapters) {
       const p = path.join(SOURCE_DIR, file);

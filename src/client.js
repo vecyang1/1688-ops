@@ -110,6 +110,10 @@ export class HubClient1688 {
     const limit = options.limit || 20;
     const pages = options.pages || (limit > 20 ? Math.ceil(limit / 20) : 1);
     const args = [keyword, '--limit', String(limit), '--pages', String(pages)];
+    if (options.sort) args.push('--sort', String(options.sort));
+    if (options.priceMin !== undefined && options.priceMin !== null) args.push('--price-min', String(options.priceMin));
+    if (options.priceMax !== undefined && options.priceMax !== null) args.push('--price-max', String(options.priceMax));
+    if (options.scene) args.push('--scene', String(options.scene));
     const items = await this.runRaw('search', args);
 
     if (this.db && Array.isArray(items)) {
@@ -198,5 +202,44 @@ export class HubClient1688 {
       logAudit(this.db, 'order_sync', 'buyer_orders', `采购订单同步成功，共 ${orders.length} 条记录`, { count: orders.length });
     }
     return orders;
+  }
+
+  async getReviews(offerInput, options = {}) {
+    const args = [String(offerInput), '--limit', String(options.limit || 20), '--sort', String(options.sort || 'default')];
+    return this.runRaw('reviews', args);
+  }
+
+  async getShopItems(storeInput, options = {}) {
+    const args = [String(storeInput), '--limit', String(options.limit || 20), '--pages', String(options.pages || 1), '--sort', String(options.sort || 'default')];
+    if (options.keyword) args.push('--keyword', String(options.keyword));
+    const items = await this.runRaw('shop-items', args);
+    if (this.db && options.sync !== false && Array.isArray(items)) {
+      upsertOffers(this.db, items);
+      logAudit(this.db, 'shop_items', String(storeInput), `店铺商品拉取 ${items.length} 条`);
+    }
+    return items;
+  }
+
+  async getFee(offerInput, options = {}) {
+    const args = [String(offerInput), '--province', String(options.province || '广东'), '--qty', String(options.qty || 1)];
+    const data = await this.runRaw('fee', args);
+    return Array.isArray(data) ? data[0] : data;
+  }
+
+  async suggest(query, options = {}) {
+    return this.runRaw('suggest', [String(query), '--limit', String(options.limit || 10)]);
+  }
+
+  async getSimilar(offerInput, options = {}) {
+    const items = await this.runRaw('similar', [String(offerInput), '--limit', String(options.limit || 20)]);
+    if (this.db && options.sync !== false && Array.isArray(items)) {
+      upsertOffers(this.db, items);
+      logAudit(this.db, 'similar_fetch', String(offerInput), `同款推荐拉取 ${items.length} 条`);
+    }
+    return items;
+  }
+
+  async searchFactories(query, options = {}) {
+    return this.runRaw('factory-search', [String(query), '--limit', String(options.limit || 20), '--pages', String(options.pages || 1), '--sort', String(options.sort || 'default')]);
   }
 }

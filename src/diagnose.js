@@ -36,6 +36,25 @@ function computeFileHash(filePath) {
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 12);
 }
 
+export const EXPECTED_ADAPTERS = [
+  'search.js',
+  'item.js',
+  'store.js',
+  'assets.js',
+  'download.js',
+  'auth.js',
+  'cart.js',
+  'orders.js',
+  'image-search.js',
+  'reviews.js',
+  'shop-items.js',
+  'fee.js',
+  'suggest.js',
+  'similar.js',
+  'factory-search.js',
+  'shared.js',
+];
+
 /**
  * 1. 能读：读取当前运行态环境、认证、数据真理与适配器版本
  * @param {import('node:sqlite').DatabaseSync} db
@@ -52,18 +71,7 @@ export function readSystemStatus(db) {
   const dbSizeBytes = dbExists ? fs.statSync(dbPath).size : 0;
 
   // 检查适配器同步状态
-  const adapters = [
-    'search.js',
-    'item.js',
-    'store.js',
-    'assets.js',
-    'download.js',
-    'auth.js',
-    'cart.js',
-    'orders.js',
-    'image-search.js',
-    'shared.js',
-  ];
+  const adapters = EXPECTED_ADAPTERS;
 
   const adapterCheck = adapters.map((name) => {
     const srcPath = path.join(SOURCE_ADAPTERS_DIR, name);
