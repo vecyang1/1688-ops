@@ -21,7 +21,7 @@
 - `npm test` → **74/74 pass, 0 fail**（基线 41 + 新增 33）。
 - 真实数据运行：`1688-ops provider-radar 707370463758 --dashboard dashboard/provider_radar.html` → 283 offers + 2 portal rows（均与 JustOneAPI 合并）/ 42 家可排名供应商；主家族 e-skate = 木速龙 21.7 AVOID（RF03+RF05，加权 48.7）、替代 e-scooter = 特轮舒 53.9 C、hoverboard = 航派 50.5 C；无 A/B 可买供应商（scoring.json canonical 结论）。
 - `1688-ops provider-radar --diagnose` → 7 pass / 4 warn / 0 fail；`--live` 门户额度 `searchesRemaining=0` 正确告警；1Password unattended 在 Node CLI 子进程中超时被如实标注为“路由问题”而非“字段缺失”。
-- 注册：`~/.agents/skills/1688-ops/SKILL.md`、`26.06.06 2nd Brain/00 - System/registries/project-capabilities.md`、`05 - Memory Center/tools/onebound_open_platform.md`。
+- 注册：`internal-docs/`、`26.06.06 knowledge vault/00 - System/registries/project-capabilities.md`、`05 - Memory Center/tools/onebound_open_platform.md`。
 
 ### Known Limits
 - 详情页属性只覆盖 4 家供应商（JustOneAPI 余额 601 中断），其余 listing 的 A/B/D 维度只能是 unknown→中性 50；不能把“未知”当好数据。
