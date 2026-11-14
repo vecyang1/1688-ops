@@ -1968,10 +1968,27 @@ export const RADAR_FILE_NAMES = {
   rankingReference: 'data/provider_ranking.json',
 };
 
+export function readConfiguredRadarDir() {
+  try {
+    const configPath = path.resolve(process.env.HOME || '.', '.config/1688-ops/radar.json');
+    if (fs.existsSync(configPath)) {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (cfg && typeof cfg.radar_dir === 'string' && cfg.radar_dir.trim()) {
+        return path.resolve(cfg.radar_dir.trim());
+      }
+    }
+  } catch {
+    // ignore invalid user config and fall back to default directory
+  }
+  return null;
+}
+
 export function resolveRadarDir(explicitDir) {
   if (explicitDir) return path.resolve(explicitDir);
   if (process.env.PROVIDER_RADAR_DIR) return path.resolve(process.env.PROVIDER_RADAR_DIR);
-  return path.resolve(process.env.HOME || '.', 'Documents/Cowork/Antigravity Cowork/26.11.13 OneBound Provider Radar');
+  const configured = readConfiguredRadarDir();
+  if (configured) return configured;
+  return path.resolve(process.env.HOME || '.', 'provider-radar');
 }
 
 function readJson(filePath, role, files, notes, { required = false } = {}) {

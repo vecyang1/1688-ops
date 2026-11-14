@@ -20,14 +20,11 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { resolveRadarDir } from './provider_radar.js';
 
 export const PORTAL_ORIGIN = 'https://trend.onebound.cn';
 export const PORTAL_BASE_PATH = '/portal/image-compare';
-export const DEFAULT_SESSION_PATH = path.join(
-  process.env.PROVIDER_RADAR_DIR ||
-    path.resolve(process.env.HOME || '.', 'Documents/Cowork/Antigravity Cowork/26.11.13 OneBound Provider Radar'),
-  'tmp/trend_session.json'
-);
+export const DEFAULT_SESSION_PATH = path.join(resolveRadarDir(), 'tmp/trend_session.json');
 
 export class PortalError extends Error {
   /**

@@ -19,7 +19,12 @@ export const ONEBOUND_ITEM_TITLE = 'OneBound · 万邦开放平台 · Production
 /** Stable item ID — more reliable than the display title when the item is renamed. */
 export const ONEBOUND_ITEM_ID = 'up3jwujwc4oho44jmnto4n6emu';
 export const ONEBOUND_ITEM_REFS = [ONEBOUND_ITEM_ID, ONEBOUND_ITEM_TITLE];
-export const JUSTONEAPI_ITEM_TITLE = 'Just One API · Commercial Data Gateway · Production · User · yanghxmail@gmail.com';
+export const JUSTONEAPI_ITEM_ID = 'e2ynutlbnw6l5huptp3hwjqeqa';
+export const JUSTONEAPI_ITEM_TITLE = process.env.JUSTONEAPI_OP_ITEM || JUSTONEAPI_ITEM_ID;
+export const JUSTONEAPI_ITEM_REFS = [
+  ...(process.env.JUSTONEAPI_OP_ITEM ? [process.env.JUSTONEAPI_OP_ITEM] : []),
+  JUSTONEAPI_ITEM_ID,
+];
 
 /** 1Password fields that must never be used as the OneBound API key. */
 export const ONEBOUND_FORBIDDEN_KEY_FIELDS = ['username', 'password'];
@@ -57,9 +62,11 @@ export function resolveCredentials(provider, options = {}) {
   if (provider === 'justoneapi') {
     const token = process.env.JUSTONEAPI_TOKEN || '';
     if (token) return { token };
-    for (const field of JUSTONEAPI_TOKEN_FIELDS) {
-      const value = lookup(JUSTONEAPI_ITEM_TITLE, field);
-      if (value) return { token: value };
+    for (const itemRef of JUSTONEAPI_ITEM_REFS) {
+      for (const field of JUSTONEAPI_TOKEN_FIELDS) {
+        const value = lookup(itemRef, field);
+        if (value) return { token: value };
+      }
     }
     return { token: null };
   }

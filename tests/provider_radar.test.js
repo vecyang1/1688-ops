@@ -20,6 +20,7 @@ import {
   candidateFromPortalRow,
   runProviderRadar,
   aggregateProviders,
+  resolveRadarDir,
 } from '../src/provider_radar.js';
 import { renderRadarDashboard, escapeHtml, safeUrl } from '../src/radar_dashboard.js';
 import {
@@ -1068,9 +1069,7 @@ describe('Provider Radar — OneBound credential field mapping (regression)', ()
 });
 
 describe('Provider Radar — real scoring.json contract (skipped when file absent)', () => {
-  const radarDir =
-    process.env.PROVIDER_RADAR_DIR ||
-    path.resolve(process.env.HOME || '.', 'Documents/Cowork/Antigravity Cowork/26.11.13 OneBound Provider Radar');
+  const radarDir = resolveRadarDir();
   const scoringPath = path.join(radarDir, 'data/scoring.json');
 
   it('the canonical scoring.json is executable and internally consistent', { skip: !fs.existsSync(scoringPath) }, () => {

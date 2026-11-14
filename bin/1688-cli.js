@@ -67,8 +67,7 @@ function printProviderRadarHelp() {
   --json-out <path>          将排名 JSON 写入文件
   --dashboard [path]         输出自包含 HTML 观测仪表盘 (默认 <radar>/dashboard/provider_radar.html)
   --no-dashboard             不生成 HTML
-  --data-dir <dir>           雷达数据目录 (默认 env PROVIDER_RADAR_DIR 或
-                             ~/Documents/Cowork/Antigravity Cowork/26.11.13 OneBound Provider Radar)
+  --data-dir <dir>           雷达数据目录 (默认 env PROVIDER_RADAR_DIR、~/.config/1688-ops/radar.json 或 ~/provider-radar)
   --scoring <path>           指定评分规则文件 (默认 <data-dir>/data/scoring.json)
   --family <id>              覆盖主家族 (electric_skateboard|electric_scooter|hoverboard_self_balancing|...)
   --destination <CN|US|EU>   目的地国家；非 CN 时启用 RF12/RF13 跨境红线 (默认 CN)

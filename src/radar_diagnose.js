@@ -221,7 +221,7 @@ export async function diagnoseProviderRadar(options = {}) {
             : `未发现 JUSTONEAPI_TOKEN 环境变量，且 1Password 未返回 token。${routeProblem() || ''}`,
           just.token
             ? '注意：JustOneAPI 账户余额已耗尽（code 601），当前任何调用都会失败；需充值 ¥5+ 后再跑付费检索。这不是 token 问题。'
-            : '检查 1Password「Agent Automation」Just One API · … · yanghxmail@gmail.com 的字段 api_token（label “API Token”；credential 为空）或设置 JUSTONEAPI_TOKEN。'
+            : '检查 1Password「Agent Automation」Just One API（item e2ynutlbnw6l5huptp3hwjqeqa）的字段 api_token（label “API Token”；credential 为空）或设置 JUSTONEAPI_TOKEN。'
         )
       );
     } catch (err) {
