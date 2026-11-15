@@ -1,6 +1,6 @@
 # 1688 & Taobao 本地轮子与 OneBound / JustOneAPI 对标矩阵
 
-- 最近巡检时间: `2026-11-13T11:04:42.040Z`
+- 最近巡检时间: `2026-11-15T19:26:50.871Z`
 - 总体状态: `PARITY_OK`
 
 ## 覆盖率汇总
@@ -10,7 +10,7 @@
 | 1688 | onebound | 36 | 30 | 6 | 0 | 100% |
 | 1688 | justoneapi | 21 | 21 | 0 | 0 | 100% |
 | taobao | onebound | 107 | 49 | 58 | 0 | 100% |
-| taobao | justoneapi | 19 | 19 | 0 | 0 | 100% |
+| taobao | justoneapi | 20 | 20 | 0 | 0 | 100% |
 
 ## 缺口状态
 
