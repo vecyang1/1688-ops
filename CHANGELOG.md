@@ -2,6 +2,16 @@
 
 本项目遵循语义化版本控制与确定性对账演化规范。
 
+## [2026-11-19] - 2026-11-19
+
+### Maintenance
+- Refresh api_parity_matrix.md (PARITY_OK 2026-11-16) (`c58a82f`)
+
+## [2026-11-16] - 2026-11-16
+
+### Maintenance
+- Externalize radar dir config and use 1Password item ID instead of personal email (`39045d8`)
+
 ## [1.3.0] - 2026-11-13
 
 ### Added
